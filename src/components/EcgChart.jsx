@@ -7,6 +7,7 @@ const EcgChart = () => {
   const [editingIndex, setEditingIndex] = useState(null);
   const [beatData, setBeatData] = useState([]);
   const [signals, setSignals] = useState([]);
+  const [selection, setSelection] = useState(null);
 
   useEffect(() => {
     fetch('/ecg_graph_dto_realistic.json')
@@ -112,9 +113,46 @@ const EcgChart = () => {
             });
         }
       });
+
+    const brush = d3.brushX()
+      .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]])
+      .on('end', (event) => {
+        if (!event.selection) return;
+        const [x0, x1] = event.selection;
+        const time0 = x.invert(x0);
+        const time1 = x.invert(x1);
+    
+        // Фильтруем удары
+        const selectedBeats = beatData.filter(b => {
+          const t = signals[b.beatIndex].timeInMs;
+          return t >= time0 && t <= time1;
+        });
+    
+        const duration = time1 - time0; // в мс
+        const bpm = selectedBeats.length / (duration / 1000) * 60;
+    
+        setSelection({
+          from: Math.round(time0),
+          to: Math.round(time1),
+          beats: selectedBeats.length,
+          bpm: Math.round(bpm),
+        });
+      });
+    
+    svg.append('g').call(brush);
   }, [signals, beatData, editingIndex]);
 
-  return <svg ref={ref}></svg>;
+  return <>
+    <svg ref={ref}></svg>
+    {selection && (
+      <div style={{ marginTop: '1em', fontSize: '14px' }}>
+        <strong>Selected range:</strong><br />
+        From: {selection.from} ms — To: {selection.to} ms<br />
+        Beats: {selection.beats} <br />
+        BPM: {selection.bpm}
+      </div>
+    )}
+  </>;
 };
 
 export default EcgChart;
