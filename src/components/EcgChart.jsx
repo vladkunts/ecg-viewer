@@ -1,21 +1,27 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
 const EcgChart = () => {
   const ref = useRef();
 
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [beatData, setBeatData] = useState([]);
+  const [signals, setSignals] = useState([]);
+
   useEffect(() => {
     fetch('/ecg_graph_dto_realistic.json')
       .then(res => res.json())
       .then(data => {
-        const { signals, beats } = data;
-        drawChart(signals, beats);
+        setBeatData(data.beats);
+        setSignals(data.signals);
       });
   }, []);
 
-  const drawChart = (signals, beats) => {
+  useEffect(() => {
+    if (!signals.length || !beatData.length) return;
+
     const svg = d3.select(ref.current);
-    svg.selectAll('*').remove(); // Clear previous content
+    svg.selectAll('*').remove();
 
     const width = 1000;
     const height = 300;
@@ -46,7 +52,6 @@ const EcgChart = () => {
       .attr('transform', `translate(${margin.left},0)`)
       .call(d3.axisLeft(y));
 
-    // ECG waveform
     svg.append('path')
       .datum(signals)
       .attr('fill', 'none')
@@ -54,9 +59,8 @@ const EcgChart = () => {
       .attr('stroke-width', 1)
       .attr('d', line);
 
-    // R-peak markers
     svg.selectAll('.r-peak-line')
-      .data(beats)
+      .data(beatData)
       .enter()
       .append('line')
       .attr('x1', d => x(signals[d.beatIndex].timeInMs))
@@ -67,17 +71,48 @@ const EcgChart = () => {
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', '4 2');
 
-    // R-peak labels
     svg.selectAll('.r-peak-label')
-      .data(beats)
+      .data(beatData)
       .enter()
-      .append('text')
-      .text(d => d.label)
-      .attr('x', d => x(signals[d.beatIndex].timeInMs) + 4)
-      .attr('y', d => y(signals[d.beatIndex].point) - 10)
-      .attr('font-size', '10px')
-      .attr('fill', 'darkred');
-  };
+      .each(function (d, i) {
+        const xCoord = x(signals[d.beatIndex].timeInMs);
+        const yCoord = y(signals[d.beatIndex].point) - 10;
+
+        if (editingIndex === i) {
+          svg.append('foreignObject')
+            .attr('x', xCoord)
+            .attr('y', yCoord)
+            .attr('width', 50)
+            .attr('height', 30)
+            .append('xhtml:select')
+            .on('change', function () {
+              const newLabel = this.value;
+              const updated = [...beatData];
+              updated[i] = { ...updated[i], label: newLabel };
+              setBeatData(updated);
+              setEditingIndex(null);
+            })
+            .selectAll('option')
+            .data(['N', 'S', 'V', 'A'])
+            .enter()
+            .append('xhtml:option')
+            .attr('value', d => d)
+            .text(d => d)
+            .property('selected', d => d === beatData[i].label);
+        } else {
+          svg.append('text')
+            .text(d.label)
+            .attr('x', xCoord + 4)
+            .attr('y', yCoord)
+            .attr('font-size', '10px')
+            .attr('fill', 'darkred')
+            .style('cursor', 'pointer')
+            .on('click', () => {
+              setEditingIndex(i);
+            });
+        }
+      });
+  }, [signals, beatData, editingIndex]);
 
   return <svg ref={ref}></svg>;
 };
