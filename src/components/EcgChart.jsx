@@ -8,12 +8,12 @@ const EcgChart = () => {
     fetch('/ecg_graph_dto_realistic.json')
       .then(res => res.json())
       .then(data => {
-        const { signals } = data;
-        drawChart(signals);
+        const { signals, beats } = data;
+        drawChart(signals, beats);
       });
   }, []);
 
-  const drawChart = (data) => {
+  const drawChart = (signals, beats) => {
     const svg = d3.select(ref.current);
     svg.selectAll('*').remove(); // Clear previous content
 
@@ -26,11 +26,11 @@ const EcgChart = () => {
       .attr('height', height);
 
     const x = d3.scaleLinear()
-      .domain(d3.extent(data, d => d.timeInMs))
+      .domain(d3.extent(signals, d => d.timeInMs))
       .range([margin.left, width - margin.right]);
 
     const y = d3.scaleLinear()
-      .domain(d3.extent(data, d => d.point))
+      .domain(d3.extent(signals, d => d.point))
       .nice()
       .range([height - margin.bottom, margin.top]);
 
@@ -46,12 +46,37 @@ const EcgChart = () => {
       .attr('transform', `translate(${margin.left},0)`)
       .call(d3.axisLeft(y));
 
+    // ECG waveform
     svg.append('path')
-      .datum(data)
+      .datum(signals)
       .attr('fill', 'none')
       .attr('stroke', 'steelblue')
       .attr('stroke-width', 1)
       .attr('d', line);
+
+    // R-peak markers
+    svg.selectAll('.r-peak-line')
+      .data(beats)
+      .enter()
+      .append('line')
+      .attr('x1', d => x(signals[d.beatIndex].timeInMs))
+      .attr('x2', d => x(signals[d.beatIndex].timeInMs))
+      .attr('y1', y(y.domain()[0]))
+      .attr('y2', y(y.domain()[1]))
+      .attr('stroke', 'red')
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '4 2');
+
+    // R-peak labels
+    svg.selectAll('.r-peak-label')
+      .data(beats)
+      .enter()
+      .append('text')
+      .text(d => d.label)
+      .attr('x', d => x(signals[d.beatIndex].timeInMs) + 4)
+      .attr('y', d => y(signals[d.beatIndex].point) - 10)
+      .attr('font-size', '10px')
+      .attr('fill', 'darkred');
   };
 
   return <svg ref={ref}></svg>;
