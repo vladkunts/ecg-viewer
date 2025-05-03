@@ -8,6 +8,7 @@ const EcgChart = () => {
   const [beatData, setBeatData] = useState([]);
   const [signals, setSignals] = useState([]);
   const [selection, setSelection] = useState(null);
+  const [activeLabels, setActiveLabels] = useState(['N', 'S', 'V', 'A']);
 
   useEffect(() => {
     fetch('/ecg_graph_dto_realistic.json')
@@ -60,8 +61,10 @@ const EcgChart = () => {
       .attr('stroke-width', 1)
       .attr('d', line);
 
+    const filteredBeats = beatData.filter(b => activeLabels.includes(b.label));
+
     svg.selectAll('.r-peak-line')
-      .data(beatData)
+      .data(filteredBeats)
       .enter()
       .append('line')
       .attr('x1', d => x(signals[d.beatIndex].timeInMs))
@@ -73,13 +76,13 @@ const EcgChart = () => {
       .attr('stroke-dasharray', '4 2');
 
     svg.selectAll('.r-peak-label')
-      .data(beatData)
+      .data(filteredBeats)
       .enter()
       .each(function (d, i) {
         const xCoord = x(signals[d.beatIndex].timeInMs);
         const yCoord = y(signals[d.beatIndex].point) - 10;
 
-        if (editingIndex === i) {
+        if (editingIndex === d.beatIndex) {
           svg.append('foreignObject')
             .attr('x', xCoord)
             .attr('y', yCoord)
@@ -89,7 +92,10 @@ const EcgChart = () => {
             .on('change', function () {
               const newLabel = this.value;
               const updated = [...beatData];
-              updated[i] = { ...updated[i], label: newLabel };
+              const idx = updated.findIndex(b => b.beatIndex === d.beatIndex);
+              if (idx !== -1) {
+                updated[idx] = { ...updated[idx], label: newLabel };
+              }
               setBeatData(updated);
               setEditingIndex(null);
             })
@@ -99,7 +105,7 @@ const EcgChart = () => {
             .append('xhtml:option')
             .attr('value', d => d)
             .text(d => d)
-            .property('selected', d => d === beatData[i].label);
+            .property('selected', d => d === beatData.find(b => b.beatIndex === d.beatIndex)?.label);
         } else {
           svg.append('text')
             .text(d.label)
@@ -108,8 +114,9 @@ const EcgChart = () => {
             .attr('font-size', '10px')
             .attr('fill', 'darkred')
             .style('cursor', 'pointer')
+            .style('pointer-events', 'all')
             .on('click', () => {
-              setEditingIndex(i);
+              setEditingIndex(d.beatIndex);
             });
         }
       });
@@ -122,13 +129,13 @@ const EcgChart = () => {
         const time0 = x.invert(x0);
         const time1 = x.invert(x1);
     
-        // Фильтруем удары
+        // Filter beats based on the selected range
         const selectedBeats = beatData.filter(b => {
           const t = signals[b.beatIndex].timeInMs;
           return t >= time0 && t <= time1;
         });
     
-        const duration = time1 - time0; // в мс
+        const duration = time1 - time0; // in milliseconds
         const bpm = selectedBeats.length / (duration / 1000) * 60;
     
         setSelection({
@@ -139,10 +146,32 @@ const EcgChart = () => {
         });
       });
     
-    svg.append('g').call(brush);
-  }, [signals, beatData, editingIndex]);
+    
+    svg.insert('g', ':first-child')
+      .attr('class', 'brush')
+      .call(brush);
+  }, [signals, beatData, editingIndex, activeLabels]);
 
   return <>
+    <div style={{ marginBottom: '1em' }}>
+      <strong>Filter annotations:</strong>
+      {['N', 'S', 'V', 'A'].map(label => (
+        <label key={label} style={{ marginLeft: '10px' }}>
+          <input
+            type="checkbox"
+            checked={activeLabels.includes(label)}
+            onChange={() => {
+              setActiveLabels(prev =>
+                prev.includes(label)
+                  ? prev.filter(l => l !== label)
+                  : [...prev, label]
+              );
+            }}
+          />
+          {label}
+        </label>
+      ))}
+    </div>
     <svg ref={ref}></svg>
     {selection && (
       <div style={{ marginTop: '1em', fontSize: '14px' }}>
