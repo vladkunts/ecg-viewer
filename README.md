@@ -1,12 +1,104 @@
-# React + Vite
+# ECG Viewer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Single-page React application for ECG data visualization and annotation editing.
 
-Currently, two official plugins are available:
+Built using **React**, **Vite**, **D3.js**, this app was implemented as part of a frontend test assignment for a medical technologies company.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## Expanding the ESLint configuration
+## 📊 Functionality
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### ✅ Core features (as required)
+
+- **Display ECG waveform (10-second window)** using D3
+- **X-axis**: Time in milliseconds
+- **Y-axis**: Signal amplitude
+- **Show annotations** with labels (N, S, V, A)
+- **Edit annotation** label via dropdown on click
+- **Highlight area** using brush
+- **Display pulse rate** in selected area (beats per minute)
+- **Filter annotations by label** using checkboxes
+
+---
+
+## 🌟 Bonus features (extra)
+
+- ✅ **Events window**:
+  - Side panel listing all annotations
+  - Batch editing: select multiple rows and assign a new label
+- ✅ **Lorenz Plot**:
+  - Visualization of RRₙ vs RRₙ₊₁ intervals
+  - Tooltip on hover
+  - Axis labels and scaling
+- ✅ **Show/hide toggles**:
+  - Toggle annotation table
+  - Toggle Lorenz plot
+
+---
+
+## 🚀 Tech stack
+
+- [React](https://reactjs.org/)
+- [Vite](https://vitejs.dev/)
+- [D3.js](https://d3js.org/) for data visualization
+
+---
+
+## 📂 Project structure
+
+```
+├── public/
+│   └── ecg_graph_dto_realistic.json
+├── src/
+│   ├── components/
+│   │   ├── EcgChart.jsx
+│   │   ├── EcgChart.module.scss
+│   │   ├── LorenzPlot.jsx
+│   └── App.jsx
+└── README.md
+```
+
+---
+
+## 🛠️ Setup and run
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) to view the app.
+
+---
+
+## 📦 Build
+
+```bash
+npm run build
+```
+
+---
+
+## 📁 Data format
+
+The app expects a JSON file at `public/ecg_graph_dto_realistic.json` with the following structure:
+
+```ts
+interface GraphPointDTO {
+  point: number;
+  timeInMs: number;
+}
+
+interface AnnotationDTO {
+  beatIndex: number;
+  startInMs: number;
+  endInMs: number;
+  rPeak: number;
+  label: 'N' | 'S' | 'V' | 'A';
+}
+
+interface EcgGraphDTO {
+  signals: GraphPointDTO[];
+  beats: AnnotationDTO[];
+}
+```
