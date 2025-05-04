@@ -1,23 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
-const EcgChart = () => {
+const EcgChart = ({ signals, beatData, setBeatData }) => {
   const ref = useRef();
 
   const [editingIndex, setEditingIndex] = useState(null);
-  const [beatData, setBeatData] = useState([]);
-  const [signals, setSignals] = useState([]);
   const [selection, setSelection] = useState(null);
   const [activeLabels, setActiveLabels] = useState(['N', 'S', 'V', 'A']);
-
-  useEffect(() => {
-    fetch('/ecg_graph_dto_realistic.json')
-      .then(res => res.json())
-      .then(data => {
-        setBeatData(data.beats);
-        setSignals(data.signals);
-      });
-  }, []);
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [showBatchEditing, setShowBatchEditing] = useState(false);
 
   useEffect(() => {
     if (!signals.length || !beatData.length) return;
@@ -50,9 +41,30 @@ const EcgChart = () => {
       .attr('transform', `translate(0,${height - margin.bottom})`)
       .call(d3.axisBottom(x));
 
+    // X axis label
+    svg.append("text")
+      .attr("text-anchor", "middle")
+      .attr("x", width / 2)
+      .attr("y", height-3)
+      .text("Time (ms)")
+      .attr("fill", "#333")
+      .attr("font-size", "11px")
+      .attr("font-weight", "bold");
+
     svg.append('g')
       .attr('transform', `translate(${margin.left},0)`)
       .call(d3.axisLeft(y));
+
+    // Y axis label
+    svg.append("text")
+      .attr("text-anchor", "middle")
+      .attr("transform", `rotate(-90)`)
+      .attr("x", -height / 2)
+      .attr("y", 10)
+      .text("Amplitude")
+      .attr("fill", "#333")
+      .attr("font-size", "11px")
+      .attr("font-weight", "bold");
 
     svg.append('path')
       .datum(signals)
@@ -114,7 +126,6 @@ const EcgChart = () => {
             .attr('font-size', '10px')
             .attr('fill', 'darkred')
             .style('cursor', 'pointer')
-            .style('pointer-events', 'all')
             .on('click', () => {
               setEditingIndex(d.beatIndex);
             });
@@ -152,8 +163,10 @@ const EcgChart = () => {
       .call(brush);
   }, [signals, beatData, editingIndex, activeLabels]);
 
+  const filteredLength = beatData.filter(b => activeLabels.includes(b.label)).length;
+
   return <>
-    <div style={{ marginBottom: '1em' }}>
+    <div style={{ marginBottom: '12px' }}>
       <strong>Filter annotations:</strong>
       {['N', 'S', 'V', 'A'].map(label => (
         <label key={label} style={{ marginLeft: '10px' }}>
@@ -174,12 +187,106 @@ const EcgChart = () => {
     </div>
     <svg ref={ref}></svg>
     {selection && (
-      <div style={{ marginTop: '1em', fontSize: '14px' }}>
+      <div style={{ marginBottom: '24px' }}>
         <strong>Selected range:</strong><br />
         From: {selection.from} ms — To: {selection.to} ms<br />
         Beats: {selection.beats} <br />
         BPM: {selection.bpm}
       </div>
+    )}
+    <div style={{ marginBottom: '10px' }}>
+      <a href="#" onClick={(e) => { e.preventDefault(); setShowBatchEditing(!showBatchEditing); }}>
+        {showBatchEditing ? 'Hide' : 'Show'} annotation table
+      </a>
+    </div>
+    {showBatchEditing && (
+      <>
+        {selectedRows.length > 0 && (
+          <div style={{ marginBottom: '1em' }}>
+            <label>
+              Set label for {selectedRows.length} selected:
+              <select
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (!value) return;
+                  const updated = [...beatData];
+                  for (const i of selectedRows) {
+                    updated[i] = { ...updated[i], label: value };
+                  }
+                  setBeatData(updated);
+                }}
+              >
+                <option value="">--</option>
+                {['N', 'S', 'V', 'A'].map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        <table style={{ width: '180px', borderCollapse: 'collapse', marginBottom: '24px' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid #ccc' }}>
+              <th>
+                <input
+                  type="checkbox"
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      const all = beatData
+                        .map((_, i) => i)
+                        .filter(i => activeLabels.includes(beatData[i].label));
+                      setSelectedRows(all);
+                    } else {
+                      setSelectedRows([]);
+                    }
+                  }}
+                  checked={filteredLength > 0 && selectedRows.length === filteredLength}
+                />
+              </th>
+              <th style={{ textAlign: 'left', padding: '4px' }}>#</th>
+              <th style={{ textAlign: 'left', padding: '4px' }}>Time (ms)</th>
+              <th style={{ textAlign: 'left', padding: '4px' }}>Label</th>
+            </tr>
+          </thead>
+          <tbody>
+            {beatData
+              .filter(b => activeLabels.includes(b.label))
+              .map((b, i) => (
+              <tr key={i}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selectedRows.includes(i)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedRows(prev => [...prev, i]);
+                      } else {
+                        setSelectedRows(prev => prev.filter(idx => idx !== i));
+                      }
+                    }}
+                  />
+                </td>
+                <td style={{ padding: '4px' }}>{i + 1}</td>
+                <td style={{ padding: '4px' }}>{signals[b.beatIndex].timeInMs}</td>
+                <td style={{ padding: '4px' }}>
+                  <select
+                    value={b.label}
+                    onChange={(e) => {
+                      const updated = [...beatData];
+                      updated[i] = { ...updated[i], label: e.target.value };
+                      setBeatData(updated);
+                    }}
+                  >
+                    {['N', 'S', 'V', 'A'].map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </>
     )}
   </>;
 };
